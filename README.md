@@ -1,6 +1,21 @@
-# fwhFoam
+<p align="center">
+  <img src="doc/assets/fwhfoam-logo.svg" alt="fwhFoam" width="420">
+</p>
 
-**A Ffowcs Williams–Hawkings acoustic-analogy solver for OpenFOAM — permeable and impermeable formulations.**
+<p align="center">
+  <b>A Ffowcs Williams–Hawkings acoustic solver for OpenFOAM,<br>with on-surface acoustic source localization.</b>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/OpenFOAM-v2306-1d7ea3">
+  <img src="https://img.shields.io/badge/C%2B%2B-14-00599C?logo=cplusplus&logoColor=white">
+  <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/License-GPL--3.0-green">
+  <img src="https://img.shields.io/badge/verified-analytic%20~0.1%25-brightgreen">
+  <img src="https://img.shields.io/badge/convergence-2nd%20order-brightgreen">
+</p>
+
+---
 
 `fwhFoam` predicts far-field aerodynamic sound from an unsteady OpenFOAM
 flow field. It implements **Farassat's formulation 1A** of the Ffowcs
@@ -18,12 +33,11 @@ flow** (wind-tunnel frame) is handled in closed form through the
 Garrick-triangle emission-time relation, with no retarded-time
 root-finding.
 
-Beyond the far-field noise, `fwhFoam` uniquely computes **acoustic source
-localization on the integration surface** — a surface sound-power density
-`σ(x)` (the diffraction-filter / surface-power theory of Delfs & Ruck) that
-shows *where the radiated sound actually comes from*, with a built-in
-consistency check `∮σ dS = P_far-field`. To our knowledge no other OpenFOAM
-FW-H tool provides this.
+From the same permeable-surface data, `fwhFoam` also computes **acoustic
+source localization on the integration surface** — a surface sound-power
+density `σ(x)` (the diffraction-filter / surface-power theory of Delfs &
+Ruck) that maps where the radiated sound originates, with the power identity
+`∮σ dS = P_far-field` as a built-in consistency check.
 
 It ships as:
 

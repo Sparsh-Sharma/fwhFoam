@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 150" width="560" height="150" role="img" aria-label="fwhFoam">
+  <title>fwhFoam</title>
+  <!-- palette: ink #12203a, teal #14b8a6 -->
+  <g fill="none" stroke-linecap="round">
+    <!-- acoustic wavefronts, opening left -->
+    <path d="M 66 44 A 34 34 0 0 0 66 106" stroke="#12203a" stroke-width="6"/>
+    <path d="M 54 34 A 46 46 0 0 0 54 116" stroke="#12203a" stroke-width="6"/>
+    <path d="M 42 24 A 58 58 0 0 0 42 126" stroke="#14b8a6" stroke-width="6"/>
+  </g>
+  <!-- airfoil / body, pointing right -->
+  <path d="M 176 75 C 150 52 112 52 96 63 C 88 68 88 82 96 87 C 112 98 150 98 176 75 Z" fill="#12203a"/>
+  <!-- wordmark -->
+  <text x="212" y="93" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif" font-size="62" letter-spacing="-1">
+    <tspan fill="#3b4a63" font-weight="400">fwh</tspan><tspan fill="#12203a" font-weight="700">Foam</tspan>
+  </text>
+</svg>
