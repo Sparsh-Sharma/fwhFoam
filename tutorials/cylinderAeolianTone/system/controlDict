@@ -1,0 +1,98 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| fwhFoam tutorial: 2D cylinder Aeolian tone                                   |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application     pimpleFoam;
+
+startFrom       startTime;
+startTime       0;
+stopAt          endTime;
+endTime         250;
+
+deltaT          0.0025;
+
+writeControl    runTime;
+writeInterval   25;
+purgeWrite      3;
+
+writeFormat     ascii;
+writePrecision  8;
+writeCompression off;
+timeFormat      general;
+timePrecision   8;
+
+runTimeModifiable false;
+
+// Fixed time step: fwhFoam requires a constant source sampling interval.
+// Finest near-wall cell ~6e-3, Umax ~2  =>  Co ~0.83 at deltaT = 2.5e-3.
+adjustTimeStep  no;
+
+libs            (fwhFoam);
+
+functions
+{
+    // Force coefficients (lift oscillates at the shedding frequency;
+    // its spectrum is the reference for the FW-H tone)
+    forceCoeffs
+    {
+        type            forceCoeffs;
+        libs            (forces);
+        writeControl    timeStep;
+        writeInterval   4;
+        patches         (cylinder);
+        rho             rhoInf;
+        rhoInf          1.225;
+        magUInf         1.0;
+        lRef            1.0;
+        Aref            1.0;    // unit span x D
+        liftDir         (0 1 0);
+        dragDir         (1 0 0);
+        CofR            (0 0 0);
+        pitchAxis       (0 0 1);
+    }
+
+    // Ffowcs Williams-Hawkings: impermeable (cylinder wall) surface
+    fwhWall
+    {
+        type            fwh;
+        libs            (fwhFoam);
+
+        c0              340.0;
+        rho0            1.225;
+        U0              (0 0 0);
+
+        surface
+        {
+            type        patches;
+            patches     (cylinder);
+        }
+
+        observers
+        {
+            mic_up   { position (0    75 0); }   // above (lift dipole peak)
+            mic_dn   { position (0   -75 0); }   // below
+            mic_dg   { position (75   0  0); }   // downstream (drag dir)
+            mic_45   { position (53.03 53.03 0); }
+        }
+
+        p               p;
+        U               U;
+        rho             rho;
+
+        writeSurfaceData true;    // also dump raw data for fwhSolve
+
+        executeControl  timeStep;
+        executeInterval 8;        // dt_src = 8*deltaT = 0.02 s (fs = 50 Hz)
+        writeControl    writeTime;
+    }
+}
+
+// ************************************************************************* //

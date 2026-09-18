@@ -1,0 +1,125 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| fwhFoam tutorial: 2D cylinder Aeolian tone -- O-grid mesh                    |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+scale   1;
+
+// Cylinder diameter D = 1 (radius 0.5), far-field radius R = 60.
+// Circular O-grid: 4 quadrant blocks, radial grading fine at the wall.
+
+rIn     0.5;
+rOut    60;
+
+// r*cos(45deg) etc.
+i        0.35355339;   //  rIn * cos45
+o        42.4264069;   //  rOut* cos45
+// First vertex layer (0-7) is placed at +z and the second (8-15) at -z so
+// that the O-grid quadrant blocks are right-handed (bottom face normal
+// points to the top face). Both z-planes are "empty" patches in 2D.
+zMin     0.5;
+zMax    -0.5;
+
+vertices
+(
+    ( $i  $i  $zMin) ( -$i  $i  $zMin) ( -$i -$i  $zMin) (  $i -$i  $zMin)   // 0-3 inner
+    ( $o  $o  $zMin) ( -$o  $o  $zMin) ( -$o -$o  $zMin) (  $o -$o  $zMin)   // 4-7 outer
+    ( $i  $i  $zMax) ( -$i  $i  $zMax) ( -$i -$i  $zMax) (  $i -$i  $zMax)   // 8-11 inner
+    ( $o  $o  $zMax) ( -$o  $o  $zMax) ( -$o -$o  $zMax) (  $o -$o  $zMax)   // 12-15 outer
+);
+
+// Circumferential cells per quadrant (nc) and radial cells (nr)
+nc  50;
+nr  140;
+rGrade 400;   // radial expansion ratio (fine near cylinder)
+
+blocks
+(
+    // top quadrant: inner 0->1, outer 4->5
+    hex ( 0 1 5 4  8 9 13 12) ($nc $nr 1) simpleGrading (1 $rGrade 1)
+    // left quadrant: inner 1->2, outer 5->6
+    hex ( 1 2 6 5  9 10 14 13) ($nc $nr 1) simpleGrading (1 $rGrade 1)
+    // bottom quadrant: inner 2->3, outer 6->7
+    hex ( 2 3 7 6  10 11 15 14) ($nc $nr 1) simpleGrading (1 $rGrade 1)
+    // right quadrant: inner 3->0, outer 7->4
+    hex ( 3 0 4 7  11 8 12 15) ($nc $nr 1) simpleGrading (1 $rGrade 1)
+);
+
+edges
+(
+    // inner arcs (r = 0.5) at the mid-angle points
+    arc  0  1 (0      0.5   $zMin)
+    arc  1  2 (-0.5   0     $zMin)
+    arc  2  3 (0     -0.5   $zMin)
+    arc  3  0 (0.5    0     $zMin)
+    arc  8  9 (0      0.5   $zMax)
+    arc  9 10 (-0.5   0     $zMax)
+    arc 10 11 (0     -0.5   $zMax)
+    arc 11  8 (0.5    0     $zMax)
+    // outer arcs (r = 60)
+    arc  4  5 (0      60    $zMin)
+    arc  5  6 (-60    0     $zMin)
+    arc  6  7 (0     -60    $zMin)
+    arc  7  4 (60     0     $zMin)
+    arc 12 13 (0      60    $zMax)
+    arc 13 14 (-60    0     $zMax)
+    arc 14 15 (0     -60    $zMax)
+    arc 15 12 (60     0     $zMax)
+);
+
+boundary
+(
+    cylinder
+    {
+        type wall;
+        faces
+        (
+            ( 0 1 9 8)
+            ( 1 2 10 9)
+            ( 2 3 11 10)
+            ( 3 0 8 11)
+        );
+    }
+    farfield
+    {
+        type patch;
+        faces
+        (
+            ( 4 5 13 12)
+            ( 5 6 14 13)
+            ( 6 7 15 14)
+            ( 7 4 12 15)
+        );
+    }
+    front
+    {
+        type empty;
+        faces
+        (
+            ( 8 9 13 12)
+            ( 9 10 14 13)
+            (10 11 15 14)
+            (11  8 12 15)
+        );
+    }
+    back
+    {
+        type empty;
+        faces
+        (
+            ( 0 1 5 4)
+            ( 1 2 6 5)
+            ( 2 3 7 6)
+            ( 3 0 4 7)
+        );
+    }
+);
+
+// ************************************************************************* //

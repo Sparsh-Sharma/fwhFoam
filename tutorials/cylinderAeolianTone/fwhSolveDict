@@ -1,0 +1,32 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| fwhSolve configuration: offline reprocessing of the cylinder wall data      |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fwhSolveDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Per-processor files written by the fwh function object (writeSurfaceData).
+// The '*' matches surfaceData_proc0.fwh, surfaceData_proc1.fwh, ...
+dataFile    "postProcessing/fwhWall/acousticData/surfaceData_proc*.fwh";
+outputDir   "fwhSolve-output";
+
+c0          340.0;
+rho0        1.225;
+U0          (0 0 0);
+
+// Reprocess to a denser observer arc (no need to re-run the CFD)
+observers
+{
+    mic_000 { position (75      0      0); }
+    mic_045 { position (53.033  53.033 0); }
+    mic_090 { position (0       75     0); }
+    mic_135 { position (-53.033 53.033 0); }
+    mic_180 { position (-75     0      0); }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use fwhFoam in your research, please cite it as below."
+title: "fwhFoam: A permeable/impermeable Ffowcs Williams–Hawkings acoustic solver for OpenFOAM"
+abstract: >-
+  fwhFoam is an open-source Ffowcs Williams–Hawkings (FW-H) acoustic-analogy
+  solver for OpenFOAM. It implements Farassat's formulation 1A with a
+  source-time-dominant (advanced-time) algorithm for both permeable and
+  impermeable integration surfaces through a single unified code path, and
+  supports a uniform mean flow via a closed-form Garrick-triangle emission-time
+  relation. It provides a runtime function object, an offline reprocessing
+  utility, Python companion tools, and an analytic verification suite.
+type: software
+authors:
+  - family-names: Sharma
+    given-names: Sparsh
+    affiliation: "German Aerospace Center (DLR)"
+    email: sparsh.sharma@dlr.de
+license: GPL-3.0-or-later
+repository-code: "https://github.com/Sparsh-Sharma/fwhFoam"
+keywords:
+  - aeroacoustics
+  - Ffowcs Williams-Hawkings
+  - acoustic analogy
+  - OpenFOAM
+  - computational aeroacoustics
+  - Farassat formulation 1A
+version: "1.0.0"
+date-released: "2026-09-18"
