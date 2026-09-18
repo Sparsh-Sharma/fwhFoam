@@ -1,0 +1,4 @@
+fwhFormulation1A.C
+functionObjects/fwh/fwh.C
+
+LIB = $(FOAM_USER_LIBBIN)/libfwhFoam

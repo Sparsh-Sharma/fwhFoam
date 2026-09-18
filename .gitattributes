@@ -1,0 +1,27 @@
+# Normalise all text to LF in the repository. The build/run scripts and
+# OpenFOAM dictionaries are executed on Linux, where CRLF breaks them.
+* text=auto eol=lf
+
+# Explicitly treat these as text with LF endings
+*.C   text eol=lf
+*.H   text eol=lf
+*.py  text eol=lf
+*.sh  text eol=lf
+*.md  text eol=lf
+*.tex text eol=lf
+*.cff text eol=lf
+*.slurm text eol=lf
+Allwmake   text eol=lf
+Allwclean  text eol=lf
+Allrun     text eol=lf
+Allclean   text eol=lf
+
+# OpenFOAM case files (no extension) are text
+tutorials/**/system/**  text eol=lf
+tutorials/**/constant/** text eol=lf
+tutorials/**/0.orig/**  text eol=lf
+
+# Binary
+*.pdf binary
+*.png binary
+*.stl binary

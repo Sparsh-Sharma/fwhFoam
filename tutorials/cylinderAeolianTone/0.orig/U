@@ -1,0 +1,37 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| fwhFoam tutorial: 2D cylinder Aeolian tone                                   |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+// Transverse seed to trigger vortex shedding (decays; far-field inlet
+// remains axial). Shedding becomes self-sustaining after the transient.
+internalField   uniform (1 0.3 0);
+
+boundaryField
+{
+    cylinder
+    {
+        type            noSlip;
+    }
+    farfield
+    {
+        type            inletOutlet;
+        inletValue      uniform (1 0 0);
+        value           uniform (1 0 0);
+    }
+    "(front|back)"
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

@@ -1,0 +1,51 @@
+# OpenFOAM build artefacts
+**/Make/*/
+lnInclude/
+linux*Gcc*/
+platforms/
+*.so
+*.o
+*.dep
+
+# OpenFOAM case run output
+tutorials/**/processor*/
+tutorials/**/postProcessing/
+tutorials/**/[0-9]*/
+!tutorials/**/0.orig/
+tutorials/**/0/
+tutorials/**/constant/polyMesh/
+tutorials/**/log.*
+tutorials/**/*.foam
+tutorials/**/slurm-*.out
+tutorials/**/fwhSolve-output/
+
+# Test / scratch output
+tests/**/_*_work/
+tests/**/*.fwh
+tests/**/*-out/
+_analytic_work/
+_conv_work/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Editor / OS
+*.swp
+*~
+.DS_Store
+
+# Paper build
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.synctex.gz
+paper/*.fdb_latexmk
+paper/*.fls
+
+# internal helper scripts (not part of the release)
+etc/_*.sh

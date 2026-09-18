@@ -1,0 +1,13 @@
+#!/bin/sh
+# Build fwhFoam: library + offline utility
+cd "${0%/*}" || exit 1
+
+set -e
+
+wmake libso src/fwhFoam
+wmake applications/fwhSolve
+
+echo
+echo "fwhFoam build complete:"
+echo "  library: $FOAM_USER_LIBBIN/libfwhFoam.so"
+echo "  utility: $FOAM_USER_APPBIN/fwhSolve"
