@@ -1,0 +1,7 @@
+Highlights (paste into the SoftwareX submission system; 3-5 items, <=85 chars each)
+
+- Open-source Ffowcs Williams-Hawkings acoustic solver for OpenFOAM.
+- Permeable and impermeable surfaces via one code path; closed-form mean flow.
+- Unique on-surface source localization by a surface sound-power density map.
+- A built-in identity ties the source map to the far-field radiated power.
+- Verified to ~0.1% on analytic sources with second-order convergence.
