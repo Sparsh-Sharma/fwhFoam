@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="doc/assets/fwhfoam-logo.svg" alt="fwhFoam" width="420">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="doc/assets/fwhfoam-logo-dark.svg">
+    <img src="doc/assets/fwhfoam-logo.svg" alt="fwhFoam" width="420">
+  </picture>
 </p>
 
 <p align="center">
