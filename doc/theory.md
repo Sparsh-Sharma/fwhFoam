@@ -248,8 +248,8 @@ power and the exact radiated power agree to a few tenths of a percent, and
 `sigma` reproduces the correct spatial pattern (uniform for the monopole,
 `cos^2` for the dipole).
 
-This capability is what distinguishes `fwhFoam` from other OpenFOAM FW-H
-implementations, which provide the far-field signal only.
+This surface-localization capability is provided in addition to the
+far-field signal that FW-H tools normally output.
 
 ## References
 
