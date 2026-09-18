@@ -66,6 +66,17 @@ Computational aeroacoustics
 \end{frontmatter}
 
 %% ------------------------------------------------------------------
+\section*{Highlights}
+\begin{itemize}
+\itemsep0em
+\item Open-source Ffowcs Williams--Hawkings acoustic solver for OpenFOAM.
+\item Permeable and impermeable surfaces via one code path; closed-form mean flow.
+\item Unique on-surface source localization by a surface sound-power density map.
+\item A built-in identity ties the source map to the far-field radiated power.
+\item Verified to $\sim$0.1\% on analytic sources with second-order convergence.
+\end{itemize}
+
+%% ------------------------------------------------------------------
 \section*{Code metadata}
 
 \begin{table}[h]
@@ -351,22 +362,25 @@ exhibiting the lift-dipole lobe pattern.}
 \label{fig:cylinder}
 \end{figure}
 
-The same simulation, sampled on a permeable cylindrical control surface,
-yields the source-localization density~\eqref{eq:sigma} at the shedding
-tone (Fig.~\ref{fig:sigma}). The density concentrates on the flanks of the
-surface normal to the mean flow, consistent with the lift-dipole mechanism,
-and its surface integral reproduces the independently computed far-field
-power to within a few percent --- the built-in identity holding on genuine
-CFD data.
+The same simulation, sampled on a permeable cylindrical control surface of
+radius $8D$, yields the source-localization density~\eqref{eq:sigma} at the
+shedding tone (Fig.~\ref{fig:sigma}). The density is concentrated on the
+downstream sector of the control surface, where the unsteady wake crosses
+it, and forms a signed lobe pair --- reflecting that radiated power is a
+two-point rather than a pointwise quantity. Its surface integral reproduces
+the independently evaluated far-field power to machine precision, the
+built-in identity confirming the internal consistency of the computation on
+genuine CFD data. The map thus attributes the tonal radiation to a
+localized region of the surface rather than to the surface as a whole.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.9\linewidth]{figs/sigma_cylinder.pdf}
-\caption{Source-power density $\sigma$ on the permeable control surface at
-the shedding tone: (left) azimuthal profile, peaking at $\theta=\pm90^\circ$
-(normal to the flow); (right) $\sigma$ over the control surface. The signed
-density localizes the radiating regions; $\oint\sigma\,dS$ matches the
-far-field power.}
+\caption{Source-power density $\sigma$ on the permeable control surface
+($r=8D$) at the shedding tone: (left) azimuthal profile around the surface;
+(right) $\sigma$ over the surface (mean flow left to right). The density
+localizes to the downstream wake-crossing sector and is signed, integrating
+to the far-field radiated power $\oint\sigma\,dS = P$ to machine precision.}
 \label{fig:sigma}
 \end{figure}
 

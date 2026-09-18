@@ -40,8 +40,6 @@ def main():
 
     ax1.plot(centres, prof, color="#1f77b4")
     ax1.axhline(0, color="k", lw=0.6)
-    for a in (90, -90):
-        ax1.axvline(a, color="#d62728", ls="--", lw=1, alpha=0.7)
     ax1.set_xlim(-180, 180)
     ax1.set_xticks([-180, -90, 0, 90, 180])
     ax1.set_xlabel(r"azimuth around control surface $\theta$ [deg]")
