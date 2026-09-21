@@ -11,7 +11,7 @@ requires-python = ">=3.9"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Sparsh Sharma", email = "sssparsh14@gmail.com" }]
 keywords = ["aeroacoustics", "ffowcs-williams-hawkings", "openfoam", "acoustics"]
-dependencies = ["numpy>=1.20"]
+dependencies = ["numpy>=1.20", "scipy>=1.7"]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.4"]
