@@ -49,3 +49,6 @@ paper/*.fls
 
 # internal helper scripts (not part of the release)
 etc/_*.sh
+
+# Manuscript kept local only, not published in the repo
+paper/
