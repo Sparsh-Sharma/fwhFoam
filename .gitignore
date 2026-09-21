@@ -52,3 +52,7 @@ etc/_*.sh
 
 # Manuscript kept local only, not published in the repo
 paper/
+
+# Submission artifacts kept local only
+SOFTX-*.pdf
+declarationStatement.docx

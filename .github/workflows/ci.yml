@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  python:
+    name: pyfwh tests + sigma verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pyfwh
+        run: pip install -e "tools[test]"
+      - name: Unit tests
+        run: pytest tools/tests -q
+      - name: Sigma localization verification
+        run: python tests/localization/verify_sigma.py
