@@ -8,6 +8,6 @@ geometry  : integration-surface generators (icosphere)
 spectra   : PSD / SPL / OASPL helpers
 """
 
-from . import io, analytic, geometry, spectra, localization
+from . import io, analytic, geometry, spectra, localization, filter
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
