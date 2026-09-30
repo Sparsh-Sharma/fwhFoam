@@ -56,6 +56,39 @@ Foam::fileName Foam::functionObjects::fwh::outputDir() const
 }
 
 
+void Foam::functionObjects::fwh::refreshPatchGeometry()
+{
+    label n = 0;
+    for (const label patchi : patchIDs_)
+    {
+        n += mesh_.boundary()[patchi].size();
+    }
+
+    Cf_.setSize(n);
+    nHat_.setSize(n);
+    dA_.setSize(n);
+
+    label i = 0;
+    for (const label patchi : patchIDs_)
+    {
+        const fvPatch& pp = mesh_.boundary()[patchi];
+        const vectorField& pCf = pp.Cf();
+        const vectorField& pSf = pp.Sf();
+        const scalarField& pMagSf = pp.magSf();
+
+        forAll(pp, fi)
+        {
+            Cf_[i] = pCf[fi];
+            // Boundary Sf points out of the fluid (into the body);
+            // the FW-H normal must point into the fluid
+            nHat_[i] = -pSf[fi]/max(pMagSf[fi], VSMALL);
+            dA_[i] = pMagSf[fi];
+            ++i;
+        }
+    }
+}
+
+
 void Foam::functionObjects::fwh::makeGeometry()
 {
     if (sampledMode_)
@@ -97,34 +130,7 @@ void Foam::functionObjects::fwh::makeGeometry()
     }
     else
     {
-        label n = 0;
-        for (const label patchi : patchIDs_)
-        {
-            n += mesh_.boundary()[patchi].size();
-        }
-
-        Cf_.setSize(n);
-        nHat_.setSize(n);
-        dA_.setSize(n);
-
-        label i = 0;
-        for (const label patchi : patchIDs_)
-        {
-            const fvPatch& pp = mesh_.boundary()[patchi];
-            const vectorField& pCf = pp.Cf();
-            const vectorField& pSf = pp.Sf();
-            const scalarField& pMagSf = pp.magSf();
-
-            forAll(pp, fi)
-            {
-                Cf_[i] = pCf[fi];
-                // Boundary Sf points out of the fluid (into the body);
-                // the FW-H normal must point into the fluid
-                nHat_[i] = -pSf[fi]/max(pMagSf[fi], VSMALL);
-                dA_[i] = pMagSf[fi];
-                ++i;
-            }
-        }
+        refreshPatchGeometry();
     }
 
     Info<< "fwh: " << name() << ": integration surface with "
@@ -257,6 +263,7 @@ void Foam::functionObjects::fwh::openDataFile()
     os << "FWH-DATA 1\n"
        << "nFaces " << Cf_.size() << "\n"
        << "hasRho 1\n"
+       << "hasMotion " << (moving_ ? 1 : 0) << "\n"
        << "binary double\n"
        << "END_HEADER\n";
 
@@ -308,6 +315,30 @@ void Foam::functionObjects::fwh::appendDataRecord
         const double v = rhoF[i];
         os.write(reinterpret_cast<const char*>(&v), sizeof(double));
     }
+    if (moving_)
+    {
+        // motion blocks: vSurf (= wall velocity u), Cf, nHat, dA
+        forAll(uF, i)
+        {
+            double rec[3] = {uF[i].x(), uF[i].y(), uF[i].z()};
+            os.write(reinterpret_cast<const char*>(rec), sizeof(rec));
+        }
+        forAll(Cf_, i)
+        {
+            double rec[3] = {Cf_[i].x(), Cf_[i].y(), Cf_[i].z()};
+            os.write(reinterpret_cast<const char*>(rec), sizeof(rec));
+        }
+        forAll(nHat_, i)
+        {
+            double rec[3] = {nHat_[i].x(), nHat_[i].y(), nHat_[i].z()};
+            os.write(reinterpret_cast<const char*>(rec), sizeof(rec));
+        }
+        forAll(dA_, i)
+        {
+            const double v = dA_[i];
+            os.write(reinterpret_cast<const char*>(&v), sizeof(double));
+        }
+    }
     os.flush();
 }
 
@@ -336,6 +367,7 @@ Foam::functionObjects::fwh::fwh
     interpolationScheme_("cellPoint"),
     checkOrientation_(true),
     flipNormals_(false),
+    moving_(false),
     Cf_(),
     nHat_(),
     dA_(),
@@ -346,6 +378,9 @@ Foam::functionObjects::fwh::fwh
     pFirst_(),
     rhoFirst_(),
     uFirst_(),
+    CfFirst_(),
+    nFirst_(),
+    dAFirst_(),
     writeSurfaceData_(false),
     dataFilePtr_(nullptr)
 {
@@ -378,10 +413,18 @@ bool Foam::functionObjects::fwh::read(const dictionary& dict)
             << U0_ << endl;
         U0_ = Zero;
     }
+    if (formulation_ == "Curle" && dict.getOrDefault<bool>("moving", false))
+    {
+        FatalIOErrorInFunction(dict)
+            << "Curle's analogy applies to static surfaces; use "
+               "Farassat1A for moving walls" << exit(FatalIOError);
+    }
 
     pName_ = dict.getOrDefault<word>("p", "p");
     UName_ = dict.getOrDefault<word>("U", "U");
     rhoName_ = dict.getOrDefault<word>("rho", "rho");
+
+    moving_ = dict.getOrDefault<bool>("moving", false);
 
     writeSurfaceData_ = dict.getOrDefault<bool>("writeSurfaceData", false);
 
@@ -408,6 +451,13 @@ bool Foam::functionObjects::fwh::read(const dictionary& dict)
     {
         sampledMode_ = true;
         patchIDs_.clear();
+
+        if (moving_)
+        {
+            FatalIOErrorInFunction(dict)
+                << "'moving true' is supported for patch surfaces only"
+                << exit(FatalIOError);
+        }
 
         interpolationScheme_ =
             surfDict.getOrDefault<word>("interpolationScheme", "cellPoint");
@@ -468,6 +518,13 @@ bool Foam::functionObjects::fwh::read(const dictionary& dict)
 
 bool Foam::functionObjects::fwh::execute()
 {
+    if (moving_)
+    {
+        // Moving wall: track the current patch geometry. The surface
+        // velocity is the sampled (no-slip) wall velocity u.
+        refreshPatchGeometry();
+    }
+
     scalarField pPrime, rhoF;
     vectorField uF;
 
@@ -489,6 +546,12 @@ bool Foam::functionObjects::fwh::execute()
             pFirst_ = pPrime;
             rhoFirst_ = rhoF;
             uFirst_ = uF;
+            if (moving_)
+            {
+                CfFirst_ = Cf_;
+                nFirst_ = nHat_;
+                dAFirst_ = dA_;
+            }
             haveFirstSample_ = true;
             return true;
         }
@@ -504,14 +567,35 @@ bool Foam::functionObjects::fwh::execute()
             )
         );
 
-        fwhPtr_->addTimeLevel(tFirst_, pFirst_, rhoFirst_, uFirst_);
+        if (moving_)
+        {
+            fwhPtr_->addTimeLevel
+            (
+                tFirst_, pFirst_, rhoFirst_, uFirst_,
+                CfFirst_, nFirst_, dAFirst_, uFirst_
+            );
+            CfFirst_.clear();
+            nFirst_.clear();
+            dAFirst_.clear();
+        }
+        else
+        {
+            fwhPtr_->addTimeLevel(tFirst_, pFirst_, rhoFirst_, uFirst_);
+        }
 
         pFirst_.clear();
         rhoFirst_.clear();
         uFirst_.clear();
     }
 
-    fwhPtr_->addTimeLevel(t, pPrime, rhoF, uF);
+    if (moving_)
+    {
+        fwhPtr_->addTimeLevel(t, pPrime, rhoF, uF, Cf_, nHat_, dA_, uF);
+    }
+    else
+    {
+        fwhPtr_->addTimeLevel(t, pPrime, rhoF, uF);
+    }
 
     return true;
 }

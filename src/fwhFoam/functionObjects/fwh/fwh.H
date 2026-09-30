@@ -87,6 +87,9 @@ Usage
         // Optional raw surface-data export for offline use with fwhSolve
         writeSurfaceData false;
 
+        // Moving/deforming wall patches (mesh motion), patch mode only
+        moving          false;
+
         // Optional field names
         p               p;
         U               U;
@@ -101,8 +104,12 @@ Usage
     \endverbatim
 
 Note
-    - The integration surface must be static; the time step (times
-      executeInterval) must be constant.
+    - The time step (times executeInterval) must be constant.
+    - By default the integration surface is assumed static. For moving
+      or deforming wall patches (mesh motion), set \c moving true: the
+      patch geometry is re-read at every sample and the surface velocity
+      is taken as the sampled wall velocity (no-slip). Moving surfaces
+      require patch mode and formulation Farassat1A.
     - Patch normals are flipped internally so that the FW-H surface
       normal points into the fluid. For sampled closed surfaces the
       orientation is checked and corrected automatically
@@ -179,6 +186,11 @@ class fwh
             bool checkOrientation_;
             bool flipNormals_;
 
+            //- Moving integration surface (patch mode only): the patch
+            //  geometry is re-read every sample and the surface velocity
+            //  is taken as the sampled wall velocity (no-slip wall).
+            bool moving_;
+
         // Cached (static) integration-surface geometry
 
             pointField Cf_;
@@ -201,6 +213,11 @@ class fwh
             scalarField rhoFirst_;
             vectorField uFirst_;
 
+            //- Cached first-sample geometry (moving surfaces)
+            pointField CfFirst_;
+            vectorField nFirst_;
+            scalarField dAFirst_;
+
         // Raw surface-data export
 
             bool writeSurfaceData_;
@@ -211,6 +228,9 @@ class fwh
 
         //- Build integration-surface geometry (Cf_, nHat_, dA_)
         void makeGeometry();
+
+        //- Re-read the (moving) patch geometry without logging
+        void refreshPatchGeometry();
 
         //- Sample p' (absolute, Pa), rho and u at the surface face centres
         void sampleFields
