@@ -93,7 +93,7 @@ def bench_one(fun, repeats, xp):
     return (time.perf_counter() - t0) / repeats
 
 
-def benchmark(subs, freq):
+def benchmark(subs, freq, cpu_max_sub=5):
     c0, rho0 = 340.29, 1.225
     omega = 2 * np.pi * freq
     k = omega / c0
@@ -118,32 +118,37 @@ def benchmark(subs, freq):
 
         reps = 3 if N <= 6000 else 1
         row = {"N": N, "freq": freq}
+        do_cpu = sub <= cpu_max_sub
 
-        t = bench_one(lambda: gpu.sigma_density(
-            cen, nrm, area, phat, vnhat, omega_, rho0, c0, xp=np), reps, np)
-        row["sigma_cpu_s"] = t
-        t = bench_one(lambda: gpu.acoustic_surface_pressure(
-            phat, cen, nrm, area, k, xp=np), reps, np)
-        row["filter_cpu_s"] = t
+        if do_cpu:
+            row["sigma_cpu_s"] = bench_one(lambda: gpu.sigma_density(
+                cen, nrm, area, phat, vnhat, omega_, rho0, c0, xp=np), reps, np)
+            row["filter_cpu_s"] = bench_one(lambda: gpu.acoustic_surface_pressure(
+                phat, cen, nrm, area, k, xp=np), reps, np)
 
         if have_gpu:
             xp = gpu.get_xp(True)
-            t = bench_one(lambda: gpu.sigma_density(
+            row["sigma_gpu_s"] = bench_one(lambda: gpu.sigma_density(
                 cen, nrm, area, phat, vnhat, omega_, rho0, c0, xp=xp),
                 max(reps, 5), xp)
-            row["sigma_gpu_s"] = t
-            t = bench_one(lambda: gpu.acoustic_surface_pressure(
+            row["filter_gpu_s"] = bench_one(lambda: gpu.acoustic_surface_pressure(
                 phat, cen, nrm, area, k, xp=xp), max(reps, 5), xp)
-            row["filter_gpu_s"] = t
-            row["sigma_speedup"] = row["sigma_cpu_s"] / row["sigma_gpu_s"]
-            row["filter_speedup"] = row["filter_cpu_s"] / row["filter_gpu_s"]
-            print(f"  N={N:6d}  sigma {row['sigma_cpu_s']:8.3f}s -> "
-                  f"{row['sigma_gpu_s']:7.4f}s ({row['sigma_speedup']:6.1f}x)"
-                  f"   filter {row['filter_cpu_s']:8.3f}s -> "
-                  f"{row['filter_gpu_s']:7.4f}s ({row['filter_speedup']:6.1f}x)")
+            if do_cpu:
+                row["sigma_speedup"] = row["sigma_cpu_s"] / row["sigma_gpu_s"]
+                row["filter_speedup"] = row["filter_cpu_s"] / row["filter_gpu_s"]
+                print(f"  N={N:6d}  sigma {row['sigma_cpu_s']:8.3f}s -> "
+                      f"{row['sigma_gpu_s']:7.4f}s ({row['sigma_speedup']:6.1f}x)"
+                      f"   filter {row['filter_cpu_s']:8.3f}s -> "
+                      f"{row['filter_gpu_s']:7.4f}s ({row['filter_speedup']:6.1f}x)",
+                      flush=True)
+            else:
+                print(f"  N={N:6d}  sigma      (cpu skipped) -> "
+                      f"{row['sigma_gpu_s']:7.4f}s"
+                      f"   filter      (cpu skipped) -> "
+                      f"{row['filter_gpu_s']:7.4f}s", flush=True)
         else:
             print(f"  N={N:6d}  sigma {row['sigma_cpu_s']:8.3f}s"
-                  f"   filter {row['filter_cpu_s']:8.3f}s")
+                  f"   filter {row['filter_cpu_s']:8.3f}s", flush=True)
         rows.append(row)
 
     # --- FW-H solver benchmark: faces x observers x time ----------------
@@ -164,20 +169,26 @@ def benchmark(subs, freq):
         data = fio.FWHData(cen, nrm, area, times, p, u, None)
 
         row = {"N": N, "nObs": nobs, "nT": nT}
-        reps = 1
-        row["fwh_cpu_s"] = bench_one(lambda: gpu.farassat_1a(
-            data, observers, 340.29, 1.225, xp=np), reps, np)
+        do_cpu = sub <= cpu_max_sub
+        if do_cpu:
+            row["fwh_cpu_s"] = bench_one(lambda: gpu.farassat_1a(
+                data, observers, 340.29, 1.225, xp=np), 1, np)
         if have_gpu:
             xp = gpu.get_xp(True)
             row["fwh_gpu_s"] = bench_one(lambda: gpu.farassat_1a(
                 data, observers, 340.29, 1.225, xp=xp), 3, xp)
-            row["fwh_speedup"] = row["fwh_cpu_s"] / row["fwh_gpu_s"]
-            print(f"  N={N:6d} x {nobs} obs x {nT} steps  FW-H "
-                  f"{row['fwh_cpu_s']:8.3f}s -> {row['fwh_gpu_s']:7.4f}s "
-                  f"({row['fwh_speedup']:6.1f}x)")
+            if do_cpu:
+                row["fwh_speedup"] = row["fwh_cpu_s"] / row["fwh_gpu_s"]
+                print(f"  N={N:6d} x {nobs} obs x {nT} steps  FW-H "
+                      f"{row['fwh_cpu_s']:8.3f}s -> {row['fwh_gpu_s']:7.4f}s "
+                      f"({row['fwh_speedup']:6.1f}x)", flush=True)
+            else:
+                print(f"  N={N:6d} x {nobs} obs x {nT} steps  FW-H "
+                      f"     (cpu skipped) -> {row['fwh_gpu_s']:7.4f}s",
+                      flush=True)
         else:
             print(f"  N={N:6d} x {nobs} obs x {nT} steps  FW-H "
-                  f"{row['fwh_cpu_s']:8.3f}s")
+                  f"{row['fwh_cpu_s']:8.3f}s", flush=True)
         fwh_rows.append(row)
 
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -192,6 +203,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--subs", type=int, nargs="+", default=[3, 4, 5, 6])
     ap.add_argument("--freq", type=float, default=500.0)
+    ap.add_argument("--cpu-max-sub", type=int, default=5,
+                    help="skip the CPU baseline above this subdivision level")
     ap.add_argument("--skip-bench", action="store_true")
     args = ap.parse_args()
 
@@ -201,7 +214,7 @@ def main():
     if not ok:
         sys.exit(1)
     if not args.skip_bench:
-        benchmark(args.subs, args.freq)
+        benchmark(args.subs, args.freq, args.cpu_max_sub)
     sys.exit(0)
 
 
