@@ -60,7 +60,7 @@ def build_moving(field, surf, times, motion):
                       vsurf=v_t, cf_t=cf_t, n_t=n_t, dA_t=dA_t)
 
 
-def run_case(args, workdir, motion, tag):
+def run_case(args, workdir, motion, tag, saved=None):
     c0, rho0 = 340.29, 1.225
     f0 = 200.0
     field = analytic.MonopoleField(1e-3, 2 * np.pi * f0, c0=c0, rho0=rho0)
@@ -94,6 +94,11 @@ def run_case(args, workdir, motion, tag):
         flag = "OK" if err < args.tol else "FAIL"
         ok &= err < args.tol
         print(f"  {name}: relL2={err:.4f} [{flag}]")
+        if saved is not None and name == "mic_x":
+            saved[f"{tag}_t"] = tpred
+            saved[f"{tag}_pred"] = ppred
+            saved[f"{tag}_exact"] = pex
+            saved[f"{tag}_err"] = err
     return ok
 
 
@@ -105,18 +110,26 @@ def main():
     ap.add_argument("--ppw", type=int, default=64)
     ap.add_argument("--periods", type=int, default=6)
     ap.add_argument("--tol", type=float, default=0.05)
+    ap.add_argument("--save", default=None,
+                    help="write mic_x signals of both cases to this .npz")
     args = ap.parse_args()
     os.makedirs(args.workdir, exist_ok=True)
 
     c0 = 340.29
+    saved = {} if args.save else None
     ok = True
     # rotation: tip speed 0.3 c0 at R=1
     ok &= run_case(args, args.workdir,
-                   dict(type="rotate", omega=0.3 * c0), "rotating")
+                   dict(type="rotate", omega=0.3 * c0), "rotating", saved)
     # oscillation: amplitude 0.15, velocity amplitude 0.2 c0
     A = 0.15
     ok &= run_case(args, args.workdir,
-                   dict(type="oscillate", A=A, Om=0.2 * c0 / A), "oscillating")
+                   dict(type="oscillate", A=A, Om=0.2 * c0 / A),
+                   "oscillating", saved)
+
+    if args.save:
+        np.savez(args.save, **saved)
+        print("saved", args.save)
 
     print("\nMOVING-SURFACE VERIFICATION " + ("PASSED" if ok else "FAILED"))
     sys.exit(0 if ok else 1)

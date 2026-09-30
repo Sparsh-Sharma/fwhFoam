@@ -13,4 +13,5 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 "$HOME/fwh-venv/bin/python" "$HERE/verify_moving.py" \
     --fwhsolve "$FOAM_USER_APPBIN/fwhSolve" \
     --workdir "${FWH_WORKDIR:-/scratch/ws25/shar_sp-P2/fwhmoving}" \
+    --save "${FWH_WORKDIR:-/scratch/ws25/shar_sp-P2/fwhmoving}/moving_signals.npz" \
     "$@"
