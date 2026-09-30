@@ -163,6 +163,7 @@ static scalar processFile
 
     label nFaces = -1;
     bool hasRho = true;
+    bool hasMotion = false;
     {
         std::string line;
         bool magicOK = false;
@@ -174,6 +175,8 @@ static scalar processFile
                 nFaces = std::stol(line.substr(7));
             else if (line.rfind("hasRho ", 0) == 0)
                 hasRho = (std::stoi(line.substr(7)) != 0);
+            else if (line.rfind("hasMotion ", 0) == 0)
+                hasMotion = (std::stoi(line.substr(10)) != 0);
         }
         if (!magicOK || nFaces < 1)
         {
@@ -202,12 +205,23 @@ static scalar processFile
     autoPtr<fwhFormulation1A> fwh;
     scalarField p(nFaces), rho(nFaces, rho0);
     vectorField u(nFaces);
+    vectorField vS(nFaces, Zero), CfT(nFaces, Zero), nT(nFaces, Zero);
+    scalarField dAT(nFaces, Zero);
     bool haveFirst = false;
     scalar tFirst = 0;
-    scalarField pFirst, rhoFirst;
-    vectorField uFirst;
+    scalarField pFirst, rhoFirst, dATFirst;
+    vectorField uFirst, vSFirst, CfTFirst, nTFirst;
     List<double> buf(max(3*nFaces, nFaces));
     label nRecords = 0;
+
+    auto readVec = [&](vectorField& fld) -> bool
+    {
+        is.read(reinterpret_cast<char*>(buf.data()), 3*nFaces*sizeof(double));
+        if (!is) return false;
+        for (label i = 0; i < nFaces; ++i)
+            fld[i] = vector(buf[3*i], buf[3*i+1], buf[3*i+2]);
+        return true;
+    };
 
     while (true)
     {
@@ -218,14 +232,18 @@ static scalar processFile
         is.read(reinterpret_cast<char*>(buf.data()), nFaces*sizeof(double));
         for (label i = 0; i < nFaces; ++i) p[i] = buf[i];
 
-        is.read(reinterpret_cast<char*>(buf.data()), 3*nFaces*sizeof(double));
-        for (label i = 0; i < nFaces; ++i)
-            u[i] = vector(buf[3*i], buf[3*i+1], buf[3*i+2]);
+        if (!readVec(u)) break;
 
         if (hasRho)
         {
             is.read(reinterpret_cast<char*>(buf.data()), nFaces*sizeof(double));
             for (label i = 0; i < nFaces; ++i) rho[i] = buf[i];
+        }
+        if (hasMotion)
+        {
+            if (!readVec(vS) || !readVec(CfT) || !readVec(nT)) break;
+            is.read(reinterpret_cast<char*>(buf.data()), nFaces*sizeof(double));
+            for (label i = 0; i < nFaces; ++i) dAT[i] = buf[i];
         }
         if (!is) break;   // truncated final record
 
@@ -242,6 +260,11 @@ static scalar processFile
             if (!haveFirst)
             {
                 tFirst = t; pFirst = p; rhoFirst = rho; uFirst = u;
+                if (hasMotion)
+                {
+                    vSFirst = vS; CfTFirst = CfT;
+                    nTFirst = nT; dATFirst = dAT;
+                }
                 haveFirst = true;
                 continue;
             }
@@ -250,9 +273,24 @@ static scalar processFile
                 new fwhFormulation1A
                 (c0, rho0, U0, t - tFirst, Cf, nHat, dA, observers)
             );
-            fwh->addTimeLevel(tFirst, pFirst, rhoFirst, uFirst);
+            if (hasMotion)
+            {
+                fwh->addTimeLevel(tFirst, pFirst, rhoFirst, uFirst,
+                                  CfTFirst, nTFirst, dATFirst, vSFirst);
+            }
+            else
+            {
+                fwh->addTimeLevel(tFirst, pFirst, rhoFirst, uFirst);
+            }
         }
-        fwh->addTimeLevel(t, p, rho, u);
+        if (hasMotion)
+        {
+            fwh->addTimeLevel(t, p, rho, u, CfT, nT, dAT, vS);
+        }
+        else
+        {
+            fwh->addTimeLevel(t, p, rho, u);
+        }
     }
 
     if (!fwh)

@@ -64,7 +64,6 @@ void Foam::fwhObserverSignal::ensureRange(const label nLo, const label nHi)
 {
     if (nMax_ < nMin_)
     {
-        // Empty: allocate fresh
         nMin_ = nLo;
         nMax_ = nHi;
         sumT_.setSize(nHi - nLo + 1, Zero);
@@ -110,7 +109,6 @@ void Foam::fwhObserverSignal::addSegment
         return;
     }
 
-    // Grid nodes n with t0 < n*dt <= t1
     const label nLo = label(std::floor(t0/dt_)) + 1;
     const label nHi = label(std::floor(t1/dt_ + SMALL));
 
@@ -175,21 +173,25 @@ Foam::fwhFormulation1A::fwhFormulation1A
     rho0_(rho0),
     U0_(U0),
     dtSrc_(dtSrc),
-    Cf_(Cf),
-    nHat_(nHat),
-    dA_(dA),
+    nFaces_(Cf.size()),
     signals_(),
     Ubuf_(),
     Lbuf_(),
+    Cfbuf_(),
+    nbuf_(),
+    dAbuf_(),
+    vBbuf_(),
     tau_(),
     nFilled_(0),
     prevPT_(),
     prevPL_(),
-    tauPrev_(-GREAT),
-    minT_(),
-    maxT_(),
-    tauFirstEmit_(GREAT),
-    tauLastEmit_(-GREAT),
+    prevArr_(),
+    emitted_(false),
+    firstArrMax_(),
+    lastArrMin_(),
+    Cf0_(Cf),
+    nHat0_(nHat),
+    dA0_(dA),
     nSkipped_(0)
 {
     if (mag(U0_) >= c0_)
@@ -218,33 +220,63 @@ Foam::fwhFormulation1A::fwhFormulation1A
     }
 
     const label nObs = signals_.size();
-    const label nF = Cf_.size();
 
     forAll(Ubuf_, li)
     {
-        Ubuf_[li].setSize(nF, Zero);
-        Lbuf_[li].setSize(nF, Zero);
+        Ubuf_[li].setSize(nFaces_, Zero);
+        Lbuf_[li].setSize(nFaces_, Zero);
+        Cfbuf_[li].setSize(nFaces_, Zero);
+        nbuf_[li].setSize(nFaces_, Zero);
+        dAbuf_[li].setSize(nFaces_, Zero);
+        vBbuf_[li].setSize(nFaces_, Zero);
         tau_[li] = 0;
     }
 
-    prevPT_.setSize(nObs*nF, Zero);
-    prevPL_.setSize(nObs*nF, Zero);
+    prevPT_.setSize(nObs*nFaces_, Zero);
+    prevPL_.setSize(nObs*nFaces_, Zero);
+    prevArr_.setSize(nObs*nFaces_, Zero);
+    firstArrMax_.setSize(nObs, -GREAT);
+    lastArrMin_.setSize(nObs, GREAT);
+}
 
-    // Propagation delays are constant for static geometry: precompute
-    // per-observer extrema for the valid-window bookkeeping
-    minT_.setSize(nObs, GREAT);
-    maxT_.setSize(nObs, -GREAT);
 
-    forAll(signals_, obsi)
+void Foam::fwhFormulation1A::fillLevel
+(
+    const label slot,
+    const scalar t,
+    const scalarField& pPrime,
+    const scalarField& rho,
+    const vectorField& u,
+    const pointField& Cf,
+    const vectorField& nHat,
+    const scalarField& dA,
+    const vectorField& vSurf
+)
+{
+    vectorField& U = Ubuf_[slot];
+    vectorField& L = Lbuf_[slot];
+
+    forAll(U, facei)
     {
-        vector rHat;
-        forAll(Cf_, facei)
-        {
-            const scalar T = solveDelay(signals_[obsi].x() - Cf_[facei], rHat);
-            minT_[obsi] = min(minT_[obsi], T);
-            maxT_[obsi] = max(maxT_[obsi], T);
-        }
+        const vector& ui = u[facei];
+        const vector& vi = vSurf[facei];
+        const vector& nf = nHat[facei];
+
+        // Medium-frame velocities: uB = u - U0, vB = v - U0
+        const vector vB = vi - U0_;
+        const vector uB = ui - U0_;
+        const scalar unRel = (ui - vi) & nf;     // u_n - v_n (frame invariant)
+
+        U[facei] = vB + (rho[facei]/rho0_)*(ui - vi);
+        L[facei] = pPrime[facei]*nf + rho[facei]*uB*unRel;
+
+        vBbuf_[slot][facei] = vB;
     }
+
+    Cfbuf_[slot] = Cf;
+    nbuf_[slot] = nHat;
+    dAbuf_[slot] = dA;
+    tau_[slot] = t;
 }
 
 
@@ -256,17 +288,36 @@ void Foam::fwhFormulation1A::addTimeLevel
     const vectorField& u
 )
 {
-    const label nF = Cf_.size();
+    const vectorField vZero(nFaces_, Zero);
+    addTimeLevel(t, pPrime, rho, u, Cf0_, nHat0_, dA0_, vZero);
+}
 
-    if (pPrime.size() != nF || rho.size() != nF || u.size() != nF)
+
+void Foam::fwhFormulation1A::addTimeLevel
+(
+    const scalar t,
+    const scalarField& pPrime,
+    const scalarField& rho,
+    const vectorField& u,
+    const pointField& Cf,
+    const vectorField& nHat,
+    const scalarField& dA,
+    const vectorField& vSurf
+)
+{
+    if
+    (
+        pPrime.size() != nFaces_ || rho.size() != nFaces_
+     || u.size() != nFaces_ || Cf.size() != nFaces_
+     || nHat.size() != nFaces_ || dA.size() != nFaces_
+     || vSurf.size() != nFaces_
+    )
     {
         FatalErrorInFunction
-            << "Field size mismatch: expected " << nF << " faces, got p:"
-            << pPrime.size() << " rho:" << rho.size() << " u:" << u.size()
+            << "Field size mismatch: expected " << nFaces_ << " faces"
             << exit(FatalError);
     }
 
-    // Select buffer slot: fill 0,1,2 then rotate
     label slot;
     if (nFilled_ < 3)
     {
@@ -274,33 +325,18 @@ void Foam::fwhFormulation1A::addTimeLevel
     }
     else
     {
-        // Rotate: discard oldest
-        Foam::Swap(Ubuf_[0], Ubuf_[1]);
-        Foam::Swap(Ubuf_[1], Ubuf_[2]);
-        Foam::Swap(Lbuf_[0], Lbuf_[1]);
-        Foam::Swap(Lbuf_[1], Lbuf_[2]);
+        Foam::Swap(Ubuf_[0], Ubuf_[1]);   Foam::Swap(Ubuf_[1], Ubuf_[2]);
+        Foam::Swap(Lbuf_[0], Lbuf_[1]);   Foam::Swap(Lbuf_[1], Lbuf_[2]);
+        Foam::Swap(Cfbuf_[0], Cfbuf_[1]); Foam::Swap(Cfbuf_[1], Cfbuf_[2]);
+        Foam::Swap(nbuf_[0], nbuf_[1]);   Foam::Swap(nbuf_[1], nbuf_[2]);
+        Foam::Swap(dAbuf_[0], dAbuf_[1]); Foam::Swap(dAbuf_[1], dAbuf_[2]);
+        Foam::Swap(vBbuf_[0], vBbuf_[1]); Foam::Swap(vBbuf_[1], vBbuf_[2]);
         tau_[0] = tau_[1];
         tau_[1] = tau_[2];
         slot = 2;
     }
 
-    // Source terms in the medium-fixed frame:
-    //   u_B = u - U0,  v_B = -U0  (static surface)
-    //   U_i = v_B + (rho/rho0) (u_B - v_B) = -U0 + (rho/rho0) u
-    //   L_i = p' nHat + rho u_B (u . nHat)
-    vectorField& U = Ubuf_[slot];
-    vectorField& L = Lbuf_[slot];
-
-    forAll(U, facei)
-    {
-        const vector& ui = u[facei];
-        const scalar un = ui & nHat_[facei];
-
-        U[facei] = -U0_ + (rho[facei]/rho0_)*ui;
-        L[facei] = pPrime[facei]*nHat_[facei] + rho[facei]*(ui - U0_)*un;
-    }
-
-    tau_[slot] = t;
+    fillLevel(slot, t, pPrime, rho, u, Cf, nHat, dA, vSurf);
 
     if (nFilled_ < 3)
     {
@@ -309,7 +345,6 @@ void Foam::fwhFormulation1A::addTimeLevel
 
     if (nFilled_ == 3)
     {
-        // Verify constant sampling interval
         const scalar d1 = tau_[1] - tau_[0];
         const scalar d2 = tau_[2] - tau_[1];
 
@@ -318,8 +353,7 @@ void Foam::fwhFormulation1A::addTimeLevel
             FatalErrorInFunction
                 << "Non-uniform source sampling: intervals " << d1 << ", "
                 << d2 << " differ from configured dt = " << dtSrc_ << nl
-                << "fwhFoam requires a constant sampling interval "
-                   "(fixed time step, fixed executeInterval)"
+                << "fwhFoam requires a constant sampling interval"
                 << exit(FatalError);
         }
 
@@ -330,85 +364,114 @@ void Foam::fwhFormulation1A::addTimeLevel
 
 void Foam::fwhFormulation1A::emitLevel()
 {
-    const label nF = Cf_.size();
     const scalar tauMid = tau_[1];
     const scalar inv2dt = 1.0/(2.0*dtSrc_);
     const scalar invC0 = 1.0/c0_;
-    const vector M = -U0_*invC0;
-    const scalar magSqrM = magSqr(M);
     const scalar fourPi = 4.0*constant::mathematical::pi;
+    const label nObs = signals_.size();
 
-    const bool havePrev = (tauPrev_ > -GREAT/2);
+    const bool first = !emitted_;
 
-    forAll(signals_, obsi)
+    // per-emit completeness tracking
+    scalarField arrMin(nObs, GREAT);
+    scalarField arrMaxFirst(nObs, -GREAT);
+
+    for (label facei = 0; facei < nFaces_; ++facei)
     {
-        fwhObserverSignal& sig = signals_[obsi];
-        const point& xObs = sig.x();
-        const label base = obsi*nF;
+        const point& y = Cfbuf_[1][facei];
+        const vector& nf = nbuf_[1][facei];
+        const scalar w = dAbuf_[1][facei]/fourPi;
 
-        for (label facei = 0; facei < nF; ++facei)
+        const vector ndot = (nbuf_[2][facei] - nbuf_[0][facei])*inv2dt;
+        const vector M = vBbuf_[1][facei]*invC0;
+        const scalar magSqrM = magSqr(M);
+        const vector Mdot =
+            (vBbuf_[2][facei] - vBbuf_[0][facei])*inv2dt*invC0;
+
+        const vector& Uc = Ubuf_[1][facei];
+        const vector& Lc = Lbuf_[1][facei];
+        const vector Udot = (Ubuf_[2][facei] - Ubuf_[0][facei])*inv2dt;
+        const vector Ldot = (Lbuf_[2][facei] - Lbuf_[0][facei])*inv2dt;
+
+        const scalar Un = Uc & nf;
+        const scalar Undot = (Udot & nf) + (Uc & ndot);
+
+        for (label obsi = 0; obsi < nObs; ++obsi)
         {
+            fwhObserverSignal& sig = signals_[obsi];
+            const label idx = obsi*nFaces_ + facei;
+
             vector rHat;
-            const scalar T = solveDelay(xObs - Cf_[facei], rHat);
+            const scalar T = solveDelay(sig.x() - y, rHat);
             const scalar r = c0_*T;
 
-            if (r < VSMALL)
+            const scalar Mr = M & rHat;
+            const scalar omr = 1.0 - Mr;
+
+            if (r < VSMALL || omr < 0.02)
             {
                 ++nSkipped_;
                 continue;
             }
 
-            const scalar Mr = M & rHat;
-            const scalar omr = 1.0 - Mr;
             const scalar invR = 1.0/r;
             const scalar invOmr2 = 1.0/sqr(omr);
 
+            // K = r*Mdot_r + c0*(Mr - M^2)
+            const scalar K = r*(Mdot & rHat) + c0_*(Mr - magSqrM);
+
             const scalar A1 = invR*invOmr2;
-            const scalar A2 = c0_*(Mr - magSqrM)*sqr(invR)*invOmr2/omr;
+            const scalar A2K = K*sqr(invR)*invOmr2/omr;
             const scalar A3 = sqr(invR)*invOmr2;
 
-            const vector& nf = nHat_[facei];
-            const vector& Uc = Ubuf_[1][facei];
-            const vector& Lc = Lbuf_[1][facei];
-
-            const vector Udot = (Ubuf_[2][facei] - Ubuf_[0][facei])*inv2dt;
-            const vector Ldot = (Lbuf_[2][facei] - Lbuf_[0][facei])*inv2dt;
-
-            const scalar Un = Uc & nf;
-            const scalar Udotn = Udot & nf;
             const scalar Lr = Lc & rHat;
             const scalar Ldotr = Ldot & rHat;
             const scalar LM = Lc & M;
 
-            const scalar w = dA_[facei]/fourPi;
-
-            const scalar pT = w*rho0_*(Udotn*A1 + Un*A2);
+            const scalar pT = w*rho0_*(Undot*A1 + Un*A2K);
             const scalar pL =
-                w*(Ldotr*A1*invC0 + (Lr - LM)*A3 + Lr*A2*invC0);
+                w*(Ldotr*A1*invC0 + (Lr - LM)*A3 + Lr*A2K*invC0);
 
-            const label idx = base + facei;
             const scalar tArr = tauMid + T;
 
-            if (havePrev)
+            if (!first)
             {
-                sig.addSegment
-                (
-                    tauPrev_ + T, prevPT_[idx], prevPL_[idx],
-                    tArr, pT, pL
-                );
+                if (tArr > prevArr_[idx])
+                {
+                    sig.addSegment
+                    (
+                        prevArr_[idx], prevPT_[idx], prevPL_[idx],
+                        tArr, pT, pL
+                    );
+                }
+                else
+                {
+                    ++nSkipped_;   // non-monotone arrival (near-sonic)
+                }
             }
 
             prevPT_[idx] = pT;
             prevPL_[idx] = pL;
+            prevArr_[idx] = tArr;
+
+            arrMin[obsi] = min(arrMin[obsi], tArr);
+            if (first)
+            {
+                arrMaxFirst[obsi] = max(arrMaxFirst[obsi], tArr);
+            }
         }
     }
 
-    if (tauFirstEmit_ > GREAT/2)
+    forAll(signals_, obsi)
     {
-        tauFirstEmit_ = tauMid;
+        lastArrMin_[obsi] = arrMin[obsi];
+        if (first)
+        {
+            firstArrMax_[obsi] = arrMaxFirst[obsi];
+        }
     }
-    tauLastEmit_ = tauMid;
-    tauPrev_ = tauMid;
+
+    emitted_ = true;
 }
 
 
@@ -419,7 +482,7 @@ void Foam::fwhFormulation1A::validWindow
     scalar& tEnd
 ) const
 {
-    if (Cf_.empty())
+    if (nFaces_ == 0)
     {
         // No local faces: neutral values for max/min reductions
         tStart = -GREAT;
@@ -427,15 +490,15 @@ void Foam::fwhFormulation1A::validWindow
         return;
     }
 
-    if (tauFirstEmit_ > GREAT/2)
+    if (!emitted_)
     {
         tStart = GREAT;
         tEnd = -GREAT;
         return;
     }
 
-    tStart = tauFirstEmit_ + maxT_[obsi];
-    tEnd = tauLastEmit_ + minT_[obsi];
+    tStart = firstArrMax_[obsi];
+    tEnd = lastArrMin_[obsi];
 }
 
 

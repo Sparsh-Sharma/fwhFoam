@@ -24,9 +24,17 @@ _MAGIC = b"FWH-DATA"
 
 
 class FWHData:
-    """In-memory representation of an FWH-DATA surface dataset."""
+    """In-memory representation of an FWH-DATA surface dataset.
 
-    def __init__(self, centres, normals, areas, times, p, u, rho=None):
+    For a MOVING surface, pass per-time geometry and surface velocity:
+    ``vsurf`` (T,N,3), ``cf_t`` (T,N,3), ``n_t`` (T,N,3), ``dA_t`` (T,N);
+    the file then carries ``hasMotion 1`` and each record appends those
+    blocks. ``centres``/``normals``/``areas`` remain the reference
+    (initial) geometry.
+    """
+
+    def __init__(self, centres, normals, areas, times, p, u, rho=None,
+                 vsurf=None, cf_t=None, n_t=None, dA_t=None):
         self.centres = np.asarray(centres, dtype=np.float64)   # (N,3)
         self.normals = np.asarray(normals, dtype=np.float64)   # (N,3)
         self.areas = np.asarray(areas, dtype=np.float64)       # (N,)
@@ -34,6 +42,20 @@ class FWHData:
         self.p = np.asarray(p, dtype=np.float64)               # (T,N)
         self.u = np.asarray(u, dtype=np.float64)               # (T,N,3)
         self.rho = None if rho is None else np.asarray(rho, np.float64)
+        motion = [vsurf, cf_t, n_t, dA_t]
+        if any(m is not None for m in motion):
+            if any(m is None for m in motion):
+                raise ValueError("moving surface needs vsurf, cf_t, n_t, dA_t")
+            self.vsurf = np.asarray(vsurf, np.float64)   # (T,N,3)
+            self.cf_t = np.asarray(cf_t, np.float64)     # (T,N,3)
+            self.n_t = np.asarray(n_t, np.float64)       # (T,N,3)
+            self.dA_t = np.asarray(dA_t, np.float64)     # (T,N)
+        else:
+            self.vsurf = self.cf_t = self.n_t = self.dA_t = None
+
+    @property
+    def has_motion(self):
+        return self.vsurf is not None
 
     @property
     def n_faces(self):
@@ -51,11 +73,13 @@ def write(path, data: "FWHData"):
     """Write an :class:`FWHData` object to *path* in FWH-DATA format."""
     n = data.n_faces
     has_rho = data.rho is not None
+    has_motion = data.has_motion
     with open(path, "wb") as f:
         header = (
             f"FWH-DATA 1\n"
             f"nFaces {n}\n"
             f"hasRho {1 if has_rho else 0}\n"
+            f"hasMotion {1 if has_motion else 0}\n"
             f"binary double\n"
             f"END_HEADER\n"
         )
@@ -73,6 +97,11 @@ def write(path, data: "FWHData"):
             f.write(data.u[k].astype("<f8").reshape(-1).tobytes())
             if has_rho:
                 f.write(data.rho[k].astype("<f8").tobytes())
+            if has_motion:
+                f.write(data.vsurf[k].astype("<f8").reshape(-1).tobytes())
+                f.write(data.cf_t[k].astype("<f8").reshape(-1).tobytes())
+                f.write(data.n_t[k].astype("<f8").reshape(-1).tobytes())
+                f.write(data.dA_t[k].astype("<f8").tobytes())
 
 
 def read(path) -> "FWHData":
@@ -80,6 +109,7 @@ def read(path) -> "FWHData":
     with open(path, "rb") as f:
         n_faces = None
         has_rho = True
+        has_motion = False
         # Header (line-based ASCII)
         magic_ok = False
         while True:
@@ -95,6 +125,8 @@ def read(path) -> "FWHData":
                 n_faces = int(line.split()[1])
             elif line.startswith(b"hasRho"):
                 has_rho = int(line.split()[1]) != 0
+            elif line.startswith(b"hasMotion"):
+                has_motion = int(line.split()[1]) != 0
         if not magic_ok or n_faces is None:
             raise ValueError(f"{path} is not a valid FWH-DATA file")
 
@@ -105,9 +137,12 @@ def read(path) -> "FWHData":
         areas = geom[:, 6].copy()
 
         rec_doubles = 1 + n_faces + 3 * n_faces + (n_faces if has_rho else 0)
+        if has_motion:
+            rec_doubles += 3 * n_faces * 3 + n_faces   # v, cf, n, dA
         rec_bytes = rec_doubles * 8
 
         times, ps, us, rhos = [], [], [], []
+        vs, cfs, ns, dAs = [], [], [], []
         while True:
             chunk = f.read(rec_bytes)
             if len(chunk) < rec_bytes:
@@ -120,6 +155,12 @@ def read(path) -> "FWHData":
             off += 3 * n_faces
             if has_rho:
                 rhos.append(vals[off:off + n_faces].copy()); off += n_faces
+            if has_motion:
+                for dst in (vs, cfs, ns):
+                    dst.append(vals[off:off + 3 * n_faces]
+                               .reshape(n_faces, 3).copy())
+                    off += 3 * n_faces
+                dAs.append(vals[off:off + n_faces].copy()); off += n_faces
 
     return FWHData(
         centres, normals, areas,
@@ -127,6 +168,10 @@ def read(path) -> "FWHData":
         np.array(ps),
         np.array(us),
         np.array(rhos) if has_rho else None,
+        vsurf=np.array(vs) if has_motion else None,
+        cf_t=np.array(cfs) if has_motion else None,
+        n_t=np.array(ns) if has_motion else None,
+        dA_t=np.array(dAs) if has_motion else None,
     )
 
 
