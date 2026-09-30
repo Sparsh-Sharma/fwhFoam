@@ -214,6 +214,13 @@ void Foam::functionObjects::fwh::sampleFields
     {
         pPrime -= pRef_;
     }
+
+    // Curle: the classical loading integral samples the pressure only
+    if (formulation_ == "Curle")
+    {
+        uF = vector::zero;
+        rhoF = rho0_;
+    }
 }
 
 
@@ -319,6 +326,7 @@ Foam::functionObjects::fwh::fwh
     rho0_(0),
     pRef_(0),
     U0_(Zero),
+    formulation_("Farassat1A"),
     pName_("p"),
     UName_("U"),
     rhoName_("rho"),
@@ -355,6 +363,21 @@ bool Foam::functionObjects::fwh::read(const dictionary& dict)
     dict.readEntry("rho0", rho0_);
     pRef_ = dict.getOrDefault<scalar>("pRef", 0);
     U0_ = dict.getOrDefault<vector>("U0", Zero);
+
+    formulation_ = dict.getOrDefault<word>("formulation", "Farassat1A");
+    if (formulation_ != "Farassat1A" && formulation_ != "Curle")
+    {
+        FatalIOErrorInFunction(dict)
+            << "Unknown formulation '" << formulation_
+            << "'; valid: Farassat1A, Curle" << exit(FatalIOError);
+    }
+    if (formulation_ == "Curle" && mag(U0_) > VSMALL)
+    {
+        WarningInFunction
+            << "Curle's analogy assumes a quiescent medium; ignoring U0 = "
+            << U0_ << endl;
+        U0_ = Zero;
+    }
 
     pName_ = dict.getOrDefault<word>("p", "p");
     UName_ = dict.getOrDefault<word>("U", "U");
@@ -434,7 +457,7 @@ bool Foam::functionObjects::fwh::read(const dictionary& dict)
     haveFirstSample_ = false;
     dataFilePtr_.reset(nullptr);
 
-    Info<< "fwh: " << name() << ": "
+    Info<< "fwh: " << name() << ": " << formulation_ << ", "
         << (sampledMode_ ? "permeable (sampled)" : "impermeable (patch)")
         << " surface, " << observers_.size() << " observers, c0 = " << c0_
         << ", rho0 = " << rho0_ << ", U0 = " << U0_ << endl;

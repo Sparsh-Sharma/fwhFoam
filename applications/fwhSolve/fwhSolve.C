@@ -149,6 +149,7 @@ static scalar processFile
     const scalar rho0,
     const vector& U0,
     const label stride,
+    const bool curle,
     const List<fwhFormulation1A::observerInfo>& observers,
     List<obsAccum>& accum
 )
@@ -227,6 +228,12 @@ static scalar processFile
             for (label i = 0; i < nFaces; ++i) rho[i] = buf[i];
         }
         if (!is) break;   // truncated final record
+
+        if (curle)        // Curle: pressure-only loading integral
+        {
+            u = Zero;
+            rho = rho0;
+        }
 
         if ((nRecords++ % stride) != 0) continue;
 
@@ -321,8 +328,25 @@ int main(int argc, char *argv[])
     );
     const scalar c0 = dict.get<scalar>("c0");
     const scalar rho0 = dict.get<scalar>("rho0");
-    const vector U0 = dict.getOrDefault<vector>("U0", Zero);
+    vector U0 = dict.getOrDefault<vector>("U0", Zero);
     const label stride = dict.getOrDefault<label>("stride", 1);
+    const word formulation
+    (
+        dict.getOrDefault<word>("formulation", "Farassat1A")
+    );
+    if (formulation != "Farassat1A" && formulation != "Curle")
+    {
+        FatalErrorInFunction
+            << "Unknown formulation '" << formulation
+            << "'; valid: Farassat1A, Curle" << exit(FatalError);
+    }
+    const bool curle = (formulation == "Curle");
+    if (curle && mag(U0) > VSMALL)
+    {
+        Info<< "Warning: Curle assumes a quiescent medium; ignoring U0"
+            << nl;
+        U0 = Zero;
+    }
 
     List<fwhFormulation1A::observerInfo> observers;
     const dictionary& obsDict = dict.subDict("observers");
@@ -352,7 +376,7 @@ int main(int argc, char *argv[])
     {
         const scalar dtf = processFile
         (
-            f, c0, rho0, U0, stride, observers, accum
+            f, c0, rho0, U0, stride, curle, observers, accum
         );
         if (dt == 0) dt = dtf;
         else if (mag(dtf - dt) > 1e-6*dt)

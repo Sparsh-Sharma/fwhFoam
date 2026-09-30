@@ -152,6 +152,12 @@ class fwh
             scalar pRef_;
             vector U0_;
 
+        //- Formulation: Farassat1A (default) or Curle. Curle is the
+        //  classical static-surface, quiescent-medium loading integral:
+        //  it samples the surface pressure only (u = 0, rho = rho0),
+        //  to which formulation 1A reduces exactly in that limit.
+            word formulation_;
+
         // Field names
 
             word pName_;
