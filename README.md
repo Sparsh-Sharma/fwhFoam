@@ -48,10 +48,14 @@ It ships as:
 |-----------|------------|
 | `libfwhFoam` | a runtime **function object** `fwh` — compute observer signals on the fly during any OpenFOAM run |
 | `fwhSolve` | an **offline utility** — recompute observer signals from stored surface data, with different observers/ambient conditions, without re-running the CFD |
-| `pyfwh` | a **Python package** — surface-data I/O, analytic reference fields, spectra, surface generators, and the **`localization` (σ) source-mapping** module |
+| `pyfwh` | a **Python package** — surface-data I/O, analytic reference fields, spectra, surface generators, the **`localization` (σ) source-mapping** and **`filter` (diffraction-filter)** modules, and a **`gpu`** module with CuPy-accelerated σ/filter/FW-H kernels (NumPy fallback) |
 | `sigma_localize` | a **source-localization driver** — turns permeable surface data into a σ map (VTK/CSV) plus the `∮σ dS = P` identity check |
-| `tests/` | an **analytic verification suite**, a **convergence study**, and a **σ-localization verification** |
+| `tests/` | an **analytic verification suite**, a **convergence study**, **σ-localization / diffraction-filter**, **Curle**, **moving-surface** and **GPU** verifications |
 | `tutorials/` | a runnable **2D cylinder Aeolian-tone** case |
+
+Formulations: **Farassat 1A** (permeable or impermeable, static or moving
+surfaces, uniform mean flow) and **Curle** (static-wall, quiescent-medium
+loading integral, to which 1A reduces exactly in that limit).
 
 ---
 
@@ -110,6 +114,9 @@ and limitations.
   tested with `openfoam/2306`.
 - A C++14 compiler (as used by your OpenFOAM build).
 - **Python ≥ 3.9** with **NumPy** (for `pyfwh`, the tests and plotting).
+- Optional: **CuPy** with a CUDA GPU — accelerates the σ-localization,
+  diffraction-filter and FW-H kernels in `pyfwh.gpu` (everything falls
+  back to NumPy without it).
 
 ## Build
 
