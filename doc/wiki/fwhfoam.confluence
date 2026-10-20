@@ -1,0 +1,39 @@
+h1. fwhFoam -- Ffowcs Williams--Hawkings acoustic solver with on-surface source localisation for OpenFOAM
+
+*Author / contact:* Sparsh Sharma, Institute of Aerodynamics and Flow Technology, DLR Braunschweig ([sparsh.sharma@dlr.de|mailto:sparsh.sharma@dlr.de])
+*Code:* [https://github.com/Sparsh-Sharma/fwhFoam] (open source, GPL-3.0)
+*Status:* manuscript under review (transferred to _Results in Engineering_).
+
+h2. Overview
+
+fwhFoam is an open-source aeroacoustic post-processing library for OpenFOAM. It predicts far-field aerodynamic sound with Farassat's formulation 1A of the Ffowcs Williams--Hawkings (FW-H) equation, and, from the same surface data, computes two on-surface source-localisation diagnostics that a far-field spectrum does not provide. The FW-H method itself is standard; the contribution is an open, verified implementation of the Delfs surface-pressure localisation method coupled to an FW-H solver inside a widely used CFD framework.
+
+h2. Capabilities
+
+* *Far-field FW-H (Farassat 1A)* for permeable and impermeable integration surfaces through one code path, on static, moving and rotating surfaces, with a uniform mean flow handled in closed form (Garrick triangle).
+* *Curle's analogy* as the static-wall, quiescent-medium limit.
+* *On-surface source localisation:*
+** the surface sound-power density {{sigma}} (Delfs \& Ruck), with the power identity {{oint sigma dS = P_far-field}} as an internal check;
+** the acoustic surface pressure from the diffraction filter (double-layer operator), which separates the radiating part of a turbulent wall-pressure field from its hydrodynamic footprint.
+* *CPU/GPU:* the quadratic-cost localisation and FW-H kernels run unchanged on a CPU (NumPy) or a GPU (CuPy); up to ~300x on an A100 for the diffraction filter.
+* *Interfaces:* a runtime OpenFOAM function object, an offline {{fwhSolve}} utility, and a Python companion package ({{pyfwh}}).
+
+h2. Verification (selected)
+
+* Analytic monopole, dipole and convected monopole: ~0.1 % relative L2, with second-order spatial and temporal convergence.
+* Cross-validation against libAcoustics on an identical cylinder case: 0.84 % at the shedding tone.
+* Moving source (rotating monopole, tip Mach 0.3): 1.3e-3.
+* Diffraction filter against the analytic sphere eigenvalues: 2e-3.
+* Radiated-power attribution on exact fields: an 18 dB-louder non-radiating wall pressure radiates 14.6 dB less; the sound-power density attributes the power to the true source.
+
+h2. Application
+
+Applied to large-eddy-simulation wall-pressure data of an SD7003 aerofoil, the diffraction filter concentrates the apparent sources near the leading and trailing edges, consistent with edge scattering and with the far-field reconstruction reported by Deng et al. (AIAA 2026-3212).
+
+h2. How to get it
+
+{code}
+git clone https://github.com/Sparsh-Sharma/fwhFoam
+{code}
+
+Requires OpenFOAM v2306 (or a nearby ESI release) and a C++14 compiler for the library and utility; Python >= 3.9 with NumPy and SciPy for {{pyfwh}}; optionally CuPy with a CUDA device for GPU execution. Documentation, a cylinder tutorial and the verification suite are included in the repository.
