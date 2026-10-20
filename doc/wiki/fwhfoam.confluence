@@ -13,7 +13,7 @@ h2. Capabilities
 * *Far-field FW-H (Farassat 1A)* for permeable and impermeable integration surfaces through one code path, on static, moving and rotating surfaces, with a uniform mean flow handled in closed form (Garrick triangle).
 * *Curle's analogy* as the static-wall, quiescent-medium limit.
 * *On-surface source localisation:*
-** the surface sound-power density {{sigma}} (Delfs \& Ruck), with the power identity {{oint sigma dS = P_far-field}} as an internal check;
+** the surface sound-power density {{sigma}} (Delfs & Ruck), with the power identity {{oint sigma dS = P_far-field}} as an internal check;
 ** the acoustic surface pressure from the diffraction filter (double-layer operator), which separates the radiating part of a turbulent wall-pressure field from its hydrodynamic footprint.
 * *CPU/GPU:* the quadratic-cost localisation and FW-H kernels run unchanged on a CPU (NumPy) or a GPU (CuPy); up to ~300x on an A100 for the diffraction filter.
 * *Interfaces:* a runtime OpenFOAM function object, an offline {{fwhSolve}} utility, and a Python companion package ({{pyfwh}}).
