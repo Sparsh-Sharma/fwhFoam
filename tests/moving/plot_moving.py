@@ -13,10 +13,15 @@ Usage:
 from __future__ import annotations
 import argparse
 
+import os, sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "tools"))
+from pyfwh import plotstyle  # noqa: E402
+plotstyle.use_paper()
 
 
 def main():

@@ -15,7 +15,8 @@ import numpy as np
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tools")))
-from pyfwh import io, spectra  # noqa: E402
+from pyfwh import io, spectra, plotstyle  # noqa: E402
+plotstyle.use_paper()
 
 
 def read_libac(path, observer):

@@ -33,7 +33,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "tools")))
-from pyfwh import localization, analytic, gpu  # noqa: E402
+from pyfwh import localization, analytic, gpu, plotstyle  # noqa: E402
 
 
 def flat_plate(Lx, Ly, nx, ny):
@@ -132,6 +132,7 @@ def _render(args, cen, sig, raw2, s, xh, F_all, F_ac, F_hy):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    plotstyle.use_paper()
     fig = plt.figure(figsize=(9.2, 3.5), layout="constrained")
 
     axL = fig.add_subplot(1, 2, 1)

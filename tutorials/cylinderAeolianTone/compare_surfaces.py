@@ -16,7 +16,8 @@ import numpy as np
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tools")))
-from pyfwh import io, spectra  # noqa: E402
+from pyfwh import io, spectra, plotstyle  # noqa: E402
+plotstyle.use_paper()
 
 SURFS = [("fwhWall", "impermeable wall", "#111111", "-"),
          ("fwhPerm4", "permeable r=4D", "#1f77b4", "--"),

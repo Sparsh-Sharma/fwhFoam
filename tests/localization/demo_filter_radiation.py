@@ -40,7 +40,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "tools")))
-from pyfwh import geometry, filter as dfilter, gpu  # noqa: E402
+from pyfwh import geometry, filter as dfilter, gpu, plotstyle  # noqa: E402
 
 
 def prolate_spheroid(sub, a, b):
@@ -160,6 +160,7 @@ def _render(cen, nrm, args, raw, flt, s, supp_mid):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.tri import Triangulation
+    plotstyle.use_paper()
 
     up = nrm[:, 1] > 0.2                      # one side of the body
     xa = cen[up, 0] / args.a
@@ -181,7 +182,7 @@ def _render(cen, nrm, args, raw, flt, s, supp_mid):
     cb.set_label(r"dB re max")
     fig.suptitle(f"Diffraction filter on a controlled field: a "
                  f"{args.gap:.0f}-dB-louder convecting wavepacket\nis "
-                 f"suppressed by {supp_mid:.0f} dB; the buried tip source "
+                 f"suppressed by {supp_mid:.1f} dB; the buried tip source "
                  f"is recovered")
     fig.savefig(args.out, dpi=200, bbox_inches="tight")
     print("wrote", args.out)
