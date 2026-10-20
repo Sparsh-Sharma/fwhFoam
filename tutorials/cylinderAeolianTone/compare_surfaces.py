@@ -39,8 +39,11 @@ def spec(case, func, obs, tmin, U, D, tone_hz=None):
     dt = np.mean(np.diff(t))
     f, g = spectra.psd(pr, dt)
     if tone_hz is None:
-        k = 1 + int(np.argmax(g[1:]))
-        tone_hz = f[k]
+        # search the shedding peak only within the physical Strouhal band, so
+        # an out-of-band feature is not mistaken for the tone on a short record
+        St = f * D / U
+        msk = (St >= 0.14) & (St <= 0.19)
+        tone_hz = f[int(np.argmax(np.where(msk, g, -np.inf)))]
     amp = spectra.amplitude_at(pr, dt, tone_hz)          # at the tone
     amp2f = spectra.amplitude_at(pr, dt, 2 * tone_hz)     # wake pseudo-sound
     return dict(St=f * D / U, psd=g, tone_hz=tone_hz,

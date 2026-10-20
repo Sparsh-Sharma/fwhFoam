@@ -33,12 +33,24 @@ def read_libac(path, observer):
     return a[:, 0], a[:, col]
 
 
-def tone(t, p, U=1.0, D=1.0):
+def tone(t, p, U=1.0, D=1.0, band=(0.14, 0.19), f0=None):
+    """Band-limited shedding tone.
+
+    The shedding Strouhal number for a circular cylinder at this Reynolds
+    number is in a narrow physical band; the peak is searched only within that
+    band, which prevents an out-of-band spectral feature from being mistaken
+    for the tone on a short record. If ``f0`` is given, the amplitude is
+    evaluated at that frequency (used to compare two signals at a common line).
+    """
     p = p - np.mean(p)
     dt = np.mean(np.diff(t))
     f, g = spectra.psd(p, dt)
-    k = 1 + int(np.argmax(g[1:]))
-    return f, g, f[k], spectra.amplitude_at(p, dt, f[k])
+    if f0 is None:
+        St = f * D / U
+        msk = (St >= band[0]) & (St <= band[1])
+        k = int(np.argmax(np.where(msk, g, -np.inf)))
+        f0 = f[k]
+    return f, g, f0, spectra.amplitude_at(p, dt, f0)
 
 
 def main():
@@ -49,7 +61,7 @@ def main():
     ap.add_argument("--fwh", default=None)
     ap.add_argument("--U", type=float, default=1.0)
     ap.add_argument("--D", type=float, default=1.0)
-    ap.add_argument("--tmin", type=float, default=50.0,
+    ap.add_argument("--tmin", type=float, default=60.0,
                     help="start of the developed-shedding analysis window [s]")
     ap.add_argument("--out", default="compare_libac.pdf")
     args = ap.parse_args()
@@ -65,13 +77,18 @@ def main():
     ml = tl >= args.tmin
     tl, pl = tl[ml], pl[ml]
 
-    ff, gf, f0f, af = tone(tf, pf, args.U, args.D)
-    fl, gl, f0l, al = tone(tl, pl, args.U, args.D)
+    # band-limited shedding peak for each code, then compare at a common line
+    ff, gf, f0f, _ = tone(tf, pf, args.U, args.D)
+    fl, gl, f0l, _ = tone(tl, pl, args.U, args.D)
+    f0 = 0.5 * (f0f + f0l)
+    af = spectra.amplitude_at(pf, np.mean(np.diff(tf)), f0)
+    al = spectra.amplitude_at(pl, np.mean(np.diff(tl)), f0)
 
+    St = f0 * args.D / args.U
     Stf, Stl = f0f * args.D / args.U, f0l * args.D / args.U
     amp_rel = abs(af - al) / max(al, 1e-30)
-    print(f"fwhFoam:      St={Stf:.4f}  tone |p|={af:.4e} Pa")
-    print(f"libAcoustics: St={Stl:.4f}  tone |p|={al:.4e} Pa")
+    print(f"shedding St = {St:.4f}  (fwhFoam peak {Stf:.4f}, libAcoustics {Stl:.4f})")
+    print(f"tone |p| at St: fwhFoam={af:.4e} Pa, libAcoustics={al:.4e} Pa")
     print(f"tonal-amplitude relative difference = {amp_rel*100:.2f} %")
 
     fig, ax = plt.subplots(figsize=(6.2, 4.0))
