@@ -118,6 +118,114 @@ class DipoleField:
         return self.pressure(x, t) / self.c0**2
 
 
+class RotatingMonopoleField:
+    r"""Pulsating point monopole on a circular path (a moving source).
+
+    The source of angular frequency ``omega`` and strength ``A`` orbits the
+    ``z`` axis through ``centre`` at radius ``R0`` and angular rate ``Omega``,
+
+        x_s(tau) = centre + R0 (cos(Omega tau + phi0),
+                                sin(Omega tau + phi0), 0),
+
+    so the emitted field is that of a genuinely moving source (rotor-like).
+    The exact field follows from the moving-source velocity potential
+
+        phi(x,t) = -(A / (4 pi R*)) exp(i omega tau),
+        R*       = r (1 - M_r),   r = |x - x_s(tau)|,
+        M_r      = (v_s . rHat)/c0,
+
+    evaluated at the retarded time tau solving ``t = tau + r(tau)/c0``, which
+    is found here by a vectorised Newton iteration (``g'(tau) = 1 - M_r > 0``
+    for a subsonic source, so the root is unique). The observables
+
+        u  = grad phi,   p' = -rho0 d phi/dt,   rho' = p'/c0^2
+
+    are taken by central differences on the smooth ``phi`` (double precision).
+    In the static limit ``Omega = 0``, ``R0 = 0`` the field reduces to
+    :class:`MonopoleField` at ``centre``. Used to validate the moving-surface
+    path against a moving-source reference (a rotating source, as opposed to a
+    static source enclosed by a moving surface).
+    """
+
+    U_mean = np.zeros(3)
+
+    def __init__(self, amplitude, omega, R0, Omega, phi0=0.0,
+                 c0=340.29, rho0=1.225, centre=(0, 0, 0)):
+        self.A = float(amplitude)
+        self.omega = float(omega)
+        self.R0 = float(R0)
+        self.Omega = float(Omega)
+        self.phi0 = float(phi0)
+        self.c0 = float(c0)
+        self.rho0 = float(rho0)
+        self.k = self.omega / self.c0
+        self.centre = np.asarray(centre, dtype=np.float64)
+        self.U_mean = np.zeros(3)
+        self._eps = 1e-6                      # spatial FD step [m]
+        self._dt = 1e-7                       # temporal FD step [s]
+        self.tip_mach = abs(self.R0 * self.Omega) / self.c0
+
+    def _xs(self, tau):
+        ang = self.Omega * tau + self.phi0
+        return self.centre + self.R0 * np.stack(
+            [np.cos(ang), np.sin(ang), np.zeros_like(ang)], axis=-1)
+
+    def _vs(self, tau):
+        ang = self.Omega * tau + self.phi0
+        return self.R0 * self.Omega * np.stack(
+            [-np.sin(ang), np.cos(ang), np.zeros_like(ang)], axis=-1)
+
+    def _retarded_tau(self, x, t, iters=80):
+        x = np.atleast_2d(np.asarray(x, dtype=np.float64))
+        N = x.shape[0]
+        tt = np.full(N, float(t))
+        # initial guess: retarded time for the source position at time t
+        r0 = np.linalg.norm(x - self._xs(tt), axis=1)
+        tau = tt - r0 / self.c0
+        for _ in range(iters):
+            xs = self._xs(tau)
+            d = x - xs
+            r = np.linalg.norm(d, axis=1)
+            r = np.where(r > 0, r, 1e-30)
+            rhat = d / r[:, None]
+            vs = self._vs(tau)
+            Mr = np.einsum("ni,ni->n", vs, rhat) / self.c0
+            g = tau + r / self.c0 - tt
+            gp = 1.0 - Mr
+            tau = tau - g / gp
+        return tau
+
+    def _phi(self, x, t):
+        tau = self._retarded_tau(x, t)
+        xs = self._xs(tau)
+        d = np.atleast_2d(np.asarray(x, dtype=np.float64)) - xs
+        r = np.linalg.norm(d, axis=1)
+        r = np.where(r > 0, r, 1e-30)
+        rhat = d / r[:, None]
+        vs = self._vs(tau)
+        Mr = np.einsum("ni,ni->n", vs, rhat) / self.c0
+        Rstar = r * (1.0 - Mr)
+        return -(self.A / (4 * np.pi * Rstar)) * np.exp(1j * self.omega * tau)
+
+    def velocity(self, x, t):
+        x = np.atleast_2d(np.asarray(x, dtype=np.float64))
+        eps = self._eps
+        g = np.zeros((x.shape[0], 3), dtype=complex)
+        for j in range(3):
+            e = np.zeros(3); e[j] = 1.0
+            g[:, j] = (self._phi(x + eps * e, t)
+                       - self._phi(x - eps * e, t)) / (2 * eps)
+        return g
+
+    def pressure(self, x, t):
+        dt = self._dt
+        dphidt = (self._phi(x, t + dt) - self._phi(x, t - dt)) / (2 * dt)
+        return -self.rho0 * dphidt
+
+    def density(self, x, t):
+        return self.pressure(x, t) / self.c0**2
+
+
 class ConvectedMonopoleField:
     r"""Stationary monopole in a uniform mean flow U0 (wind-tunnel frame).
 
